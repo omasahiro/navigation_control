@@ -1,6 +1,6 @@
 # sections.yaml
 sections:
-  section1:
+  "エリアA":
     start:
       position:
         x: -2.0
@@ -21,7 +21,7 @@ sections:
         y: 0.0
         z: -1.0
         w: 0.0
-  section2:
+  "エリアB":
     start:
       position:
         x: 1.5
@@ -42,7 +42,7 @@ sections:
         y: 0.0
         z: 0.0
         w: 1.0
-  section3:
+  "エリアC":
     start:
       position:
         x: 0.0
