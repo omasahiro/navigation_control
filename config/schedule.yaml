@@ -1,0 +1,22 @@
+schedule:
+- end_time: '23:00'
+  section_id: section1
+  start_time: '22:57'
+- end_time: '23:02'
+  section_id: section2
+  start_time: '23:00'
+- end_time: '23:05'
+  section_id: section3
+  start_time: '23:02'
+- end_time: 00:10
+  section_id: section1
+  start_time: 00:05
+- end_time: 00:10
+  section_id: section1
+  start_time: 00:05
+- end_time: 00:10
+  section_id: section1
+  start_time: 00:05
+- end_time: 00:10
+  section_id: section1
+  start_time: 00:05

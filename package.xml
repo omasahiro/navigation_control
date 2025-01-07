@@ -3,20 +3,24 @@
 <package format="3">
   <name>navigation_control</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="omasahiro.numazukosen@gmail.com">omasahiro</maintainer>
+  <description>Navigation control package for robot patrol</description>
+  <maintainer email="your_email@example.com">your_name</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
   <depend>std_srvs</depend>
   <depend>nav2_msgs</depend>
   <depend>geometry_msgs</depend>
-  <depend>python3-yaml</depend>
+  <depend>yaml</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
+  <exec_depend>python3-fastapi</exec_depend>
+  <exec_depend>python3-uvicorn</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-multipart</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

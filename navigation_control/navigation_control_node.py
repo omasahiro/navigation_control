@@ -9,18 +9,16 @@ from geometry_msgs.msg import PoseStamped
 import yaml
 import os
 from ament_index_python.packages import get_package_share_directory
+from datetime import datetime, time
 
 class NavigationControlNode(Node):
     def __init__(self):
         super().__init__('navigation_control_node')
         
-        # ROSロガーの設定
         self.get_logger().info('Navigation control node started')
         
-        # コールバックグループの設定
         self.callback_group = MutuallyExclusiveCallbackGroup()
 
-        # resumeサービスの設定
         self.resume_service = self.create_service(
             Trigger,
             'resume_navigation',
@@ -28,7 +26,6 @@ class NavigationControlNode(Node):
             callback_group=self.callback_group
         )
 
-        # Nav2アクションクライアントの設定
         self.nav_client = ActionClient(
             self,
             NavigateToPose,
@@ -36,28 +33,132 @@ class NavigationControlNode(Node):
             callback_group=self.callback_group
         )
 
-        # 目標地点の読み込み
+        # 往復区間と時間帯の設定を読み込む
+        self.load_schedule()
         self.load_waypoints()
 
-        # 現在の目標地点のインデックス
-        self.current_goal_index = 0
-        
-        # ナビゲーション状態
+        # 現在の往復区間のインデックス
+        self.current_section = None
+        self.moving_forward = True  # True: 往路, False: 復路
         self.is_navigating = False
 
-    def load_waypoints(self):
-        """設定ファイルから目標地点を読み込む"""
+        # 定期的なスケジュールチェック (10秒ごと)
+        self.create_timer(10.0, self.check_schedule)
+        self.create_timer(30.0, self.reload_schedule)
+
+    def load_schedule(self):
+        """スケジュール設定ファイルを読み込む"""
         try:
             config_dir = os.path.join(get_package_share_directory('navigation_control'), 'config')
-            waypoints_file = os.path.join(config_dir, 'waypoints.yaml')
+            schedule_file = os.path.join(config_dir, 'schedule.yaml')
             
-            with open(waypoints_file, 'r') as f:
+            with open(schedule_file, 'r') as f:
                 config = yaml.safe_load(f)
-                self.waypoints = config['waypoints']
-                self.get_logger().info(f'Loaded {len(self.waypoints)} waypoints')
+                self.schedule = config['schedule']
+                self.get_logger().info(f'Loaded {len(self.schedule)} schedule entries')
         except Exception as e:
-            self.get_logger().error(f'Failed to load waypoints: {str(e)}')
-            self.waypoints = []
+            self.get_logger().error(f'Failed to load schedule: {str(e)}')
+            self.schedule = []
+
+    def load_waypoints(self):
+        """往復区間の地点データを読み込む"""
+        try:
+            config_dir = os.path.join(get_package_share_directory('navigation_control'), 'config')
+            sections_file = os.path.join(config_dir, 'sections.yaml')
+            
+            with open(sections_file, 'r') as f:
+                config = yaml.safe_load(f)
+                self.sections = config['sections']
+                self.get_logger().info(f'Loaded {len(self.sections)} sections')
+        except Exception as e:
+            self.get_logger().error(f'Failed to load sections: {str(e)}')
+            self.sections = []
+
+    def check_schedule(self):
+        """現在時刻に基づいて適切な往復区間を選択する"""
+        current_time = datetime.now().time()
+        new_section = None
+
+        for schedule_entry in self.schedule:
+            start_time = datetime.strptime(schedule_entry['start_time'], '%H:%M').time()
+            end_time = datetime.strptime(schedule_entry['end_time'], '%H:%M').time()
+            
+            if self._is_time_between(current_time, start_time, end_time):
+                new_section = schedule_entry['section_id']
+                break
+
+        if new_section != self.current_section:
+            self.current_section = new_section
+            self.moving_forward = True
+            if not self.is_navigating and self.current_section is not None:
+                self.navigate_to_current_goal()
+
+    def reload_schedule(self):
+        """設定ファイルを再読み込みする"""
+        self.get_logger().info('Reloading schedule...')
+        self.load_schedule()
+        self.load_waypoints()
+    
+        # 現在のナビゲーション状態をリセット
+        if not self.is_navigating:
+            self.current_section = None
+            self.moving_forward = True
+            self.check_schedule()  # 現在時刻に応じたスケジュールを確認
+
+    def _is_time_between(self, current_time, start_time, end_time):
+        """指定された時間が開始時間と終了時間の間にあるかチェック"""
+        if start_time <= end_time:
+            return start_time <= current_time <= end_time
+        else:  # 日をまたぐ場合
+            return current_time >= start_time or current_time <= end_time
+
+    def get_current_goal_pose(self):
+        """現在の目標地点のPoseを取得"""
+        if self.current_section is None or self.current_section not in self.sections:
+            return None
+
+        section = self.sections[self.current_section]
+        point = section['start'] if self.moving_forward else section['end']
+
+        goal_pose = PoseStamped()
+        goal_pose.header.frame_id = 'map'
+        goal_pose.header.stamp = self.get_clock().now().to_msg()
+        goal_pose.pose.position.x = point['position']['x']
+        goal_pose.pose.position.y = point['position']['y']
+        goal_pose.pose.position.z = point['position']['z']
+        goal_pose.pose.orientation.x = point['orientation']['x']
+        goal_pose.pose.orientation.y = point['orientation']['y']
+        goal_pose.pose.orientation.z = point['orientation']['z']
+        goal_pose.pose.orientation.w = point['orientation']['w']
+
+        return goal_pose
+
+    def navigate_to_current_goal(self):
+        """現在の目標地点へのナビゲーションを開始"""
+        if self.current_section is None:
+            self.get_logger().info('No active section for current time')
+            return False
+
+        goal_pose = self.get_current_goal_pose()
+        if goal_pose is None:
+            self.get_logger().error('Failed to get goal pose')
+            return False
+
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = goal_pose
+
+        if not self.nav_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error('Navigation action server not available')
+            return False
+
+        self.get_logger().info(f'Navigating to {"start" if self.moving_forward else "end"} of section {self.current_section}')
+        send_goal_future = self.nav_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+        send_goal_future.add_done_callback(self.goal_response_callback)
+        self.is_navigating = True
+        return True
 
     def goal_response_callback(self, future):
         """ナビゲーションゴールが受け付けられたときのコールバック"""
@@ -77,69 +178,27 @@ class NavigationControlNode(Node):
         status = future.result().status
         if status == 4:  # 成功した場合
             self.get_logger().info('Navigation succeeded')
-            # 次の目標地点へ更新
-            self.current_goal_index = (self.current_goal_index + 1) % len(self.waypoints)
+            # 往復の向きを切り替え
+            self.moving_forward = not self.moving_forward
             # 次の目標地点への移動を開始
             self.navigate_to_current_goal()
         else:
             self.get_logger().error(f'Navigation failed with status: {status}')
             self.is_navigating = False
 
-    def navigate_to_current_goal(self):
-        """現在の目標地点へのナビゲーションを開始"""
-        if not self.waypoints:
-            self.get_logger().error('No waypoints available')
-            return False
-
-        current_goal = self.waypoints[self.current_goal_index]
-        
-        # PoseStampedメッセージの作成
-        goal_pose = PoseStamped()
-        goal_pose.header.frame_id = 'map'
-        goal_pose.header.stamp = self.get_clock().now().to_msg()
-        goal_pose.pose.position.x = current_goal['position']['x']
-        goal_pose.pose.position.y = current_goal['position']['y']
-        goal_pose.pose.position.z = current_goal['position']['z']
-        goal_pose.pose.orientation.x = current_goal['orientation']['x']
-        goal_pose.pose.orientation.y = current_goal['orientation']['y']
-        goal_pose.pose.orientation.z = current_goal['orientation']['z']
-        goal_pose.pose.orientation.w = current_goal['orientation']['w']
-
-        # ナビゲーションゴールの作成
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose = goal_pose
-
-        # Nav2クライアントの準備確認
-        if not self.nav_client.wait_for_server(timeout_sec=5.0):
-            self.get_logger().error('Navigation action server not available')
-            return False
-
-        # ナビゲーション開始
-        self.get_logger().info(f'Navigating to goal {self.current_goal_index}')
-        send_goal_future = self.nav_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self.feedback_callback
-        )
-        send_goal_future.add_done_callback(self.goal_response_callback)
-        self.is_navigating = True
-        return True
-
     def feedback_callback(self, feedback_msg):
         """ナビゲーションの進捗状況を受け取るコールバック"""
         feedback = feedback_msg.feedback
-        # 必要に応じてフィードバック情報を処理
 
     async def resume_callback(self, request, response):
         """resumeサービスのコールバック関数"""
         self.get_logger().info('Resume navigation service called')
         
-        # すでにナビゲーション中の場合は新しいリクエストを拒否
         if self.is_navigating:
             response.success = False
             response.message = 'Navigation is already in progress'
             return response
 
-        # ナビゲーション開始
         if self.navigate_to_current_goal():
             response.success = True
             response.message = 'Navigation started successfully'
