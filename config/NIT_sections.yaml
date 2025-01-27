@@ -3,7 +3,7 @@ sections:
   "D科棟":
     start:
       position:
-        x: 50.0
+        x: 50
         y: 11.7
         z: 0.0
       orientation:
@@ -21,7 +21,7 @@ sections:
         y: 0.0
         z: 0.0
         w: 1.0
-  "共通棟":
+  "共通棟-ロボコン部前":
     start:
       position:
         x: 30.3
@@ -84,24 +84,3 @@ sections:
         y: 0.0
         z: 0.707
         w: 0.707
-  "MRS2404-ブース":
-    start:
-      position:
-        x: 3.0
-        y: 0.0
-        z: 0.0
-      orientation:
-        x: 0.0
-        y: 0.0
-        z: 1.0
-        w: 0.0
-    end:
-      position:
-        x: 0.5
-        y: 0.0
-        z: 0.0
-      orientation:
-        x: 0.0
-        y: 0.0
-        z: 0.0
-        w: 1.0

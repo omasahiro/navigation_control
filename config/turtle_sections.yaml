@@ -1,0 +1,65 @@
+# sections.yaml
+sections:
+  "エリアA":
+    start:
+      position:
+        x: -2.0
+        y: -0.5
+        z: 0.0
+      orientation:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        w: 1.0
+    end:
+      position:
+        x: 1.5
+        y: -0.5
+        z: 0.0
+      orientation:
+        x: 0.0
+        y: 0.0
+        z: -1.0
+        w: 0.0
+  "エリアB":
+    start:
+      position:
+        x: 1.5
+        y: -0.5
+        z: 0.0
+      orientation:
+        x: 0.0
+        y: 0.0
+        z: 0.707
+        w: 0.707
+    end:
+      position:
+        x: 0.0
+        y: 1.78
+        z: 0.0
+      orientation:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        w: 1.0
+  "エリアC":
+    start:
+      position:
+        x: 0.0
+        y: 1.78
+        z: 0.0
+      orientation:
+        x: 0.0
+        y: 0.0
+        z: 1.0
+        w: 0.0
+    end:
+      position:
+        x: -2.0
+        y: -0.5
+        z: 0.0
+      orientation:
+        x: 0.0
+        y: 0.0
+        z: 0.707
+        w: 0.707

@@ -19,6 +19,13 @@ class NavigationControlNode(Node):
         
         self.callback_group = MutuallyExclusiveCallbackGroup()
 
+        self.stop_service = self.create_service(
+            Trigger,
+            'stop_navigation',
+            self.stop_callback,
+            callback_group=self.callback_group
+        )
+
         self.resume_service = self.create_service(
             Trigger,
             'resume_navigation',
@@ -45,6 +52,8 @@ class NavigationControlNode(Node):
         # 定期的なスケジュールチェック (10秒ごと)
         self.create_timer(10.0, self.check_schedule)
         self.create_timer(30.0, self.reload_schedule)
+
+        self.navigation_stopped = False
 
     def load_schedule(self):
         """スケジュール設定ファイルを読み込む"""
@@ -76,6 +85,9 @@ class NavigationControlNode(Node):
 
     def check_schedule(self):
         """現在時刻に基づいて適切な往復区間を選択する"""
+        if self.navigation_stopped:
+            return  # ナビゲーションが停止中の場合は何もしない
+
         current_time = datetime.now().time()
         new_section = None
 
@@ -190,6 +202,16 @@ class NavigationControlNode(Node):
         """ナビゲーションの進捗状況を受け取るコールバック"""
         feedback = feedback_msg.feedback
 
+    async def stop_callback(self, request, response):
+        """stopサービスのコールバック関数"""
+        self.get_logger().info('Stop navigation service called')
+        
+        self.navigation_stopped = True
+        self.is_navigating = False
+        response.success = True
+        response.message = 'Navigation stopped successfully'
+        return response
+
     async def resume_callback(self, request, response):
         """resumeサービスのコールバック関数"""
         self.get_logger().info('Resume navigation service called')
@@ -199,6 +221,7 @@ class NavigationControlNode(Node):
             response.message = 'Navigation is already in progress'
             return response
 
+        self.navigation_stopped = False
         if self.navigate_to_current_goal():
             response.success = True
             response.message = 'Navigation started successfully'
